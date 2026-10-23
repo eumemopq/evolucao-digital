@@ -1,0 +1,851 @@
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#070b18; --bg2:#0b1230; --cyan:#00f0ff; --pink:#ff2ed1; --lime:#b6ff2e;
+  --yellow:#ffd60a; --purple:#7c5cff; --card:rgba(255,255,255,.06);
+  --stroke:rgba(255,255,255,.12);
+}
+html{scroll-behavior:smooth}
+html,body{height:100%}
+body{
+  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Inter,Arial,sans-serif;
+  background:var(--bg); color:#fff; text-align:left; overflow:hidden;
+}
+/* particle canvas */
+#stars{position:fixed;inset:0;z-index:0;opacity:.9;pointer-events:none}
+/* HUD */
+#hud{position:fixed;top:0;left:0;right:0;z-index:50;display:flex;align-items:center;gap:12px;
+  padding:10px 16px;background:linear-gradient(180deg,rgba(7,11,24,.9),rgba(7,11,24,0));}
+#hud .logo{font-weight:900;letter-spacing:.5px;font-size:13px;background:#fff;color:#000;
+  padding:6px 10px;border-radius:99px;white-space:nowrap}
+#hud .logo b{color:var(--pink)}
+#barWrap{flex:1;height:8px;background:rgba(255,255,255,.12);border-radius:99px;overflow:hidden}
+#bar{height:100%;width:0%;background:linear-gradient(90deg,var(--cyan),var(--pink),var(--yellow));border-radius:99px;transition:width .35s}
+#count{font-size:12px;font-weight:800;opacity:.9;white-space:nowrap}
+#hud button{border:1px solid var(--stroke);background:rgba(255,255,255,.08);color:#fff;
+  border-radius:99px;padding:7px 12px;font-weight:800;font-size:12px;cursor:pointer;backdrop-filter:blur(8px)}
+#hud button:hover{background:#fff;color:#000}
+/* deck */
+#deck{position:fixed;inset:0;top:0;overflow-y:auto;scroll-snap-type:y mandatory;z-index:1;
+  scrollbar-width:none}
+#deck::-webkit-scrollbar{display:none}
+.slide{min-height:100vh;min-height:100dvh;scroll-snap-align:start;scroll-snap-stop:always;
+  display:flex;align-items:center;justify-content:center;padding:66px 18px 84px;position:relative;overflow:hidden}
+.wrap{width:min(1100px,100%);position:relative;z-index:2}
+.kicker{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:900;letter-spacing:2px;
+  text-transform:uppercase;color:#000;background:var(--lime);padding:7px 12px;border-radius:99px;margin-bottom:14px}
+.kicker.pink{background:var(--pink);color:#fff}
+.kicker.cyan{background:var(--cyan);color:#001318}
+.kicker.yellow{background:var(--yellow);color:#231a00}
+h1{font-size:clamp(38px,7vw,84px);line-height:.92;font-weight:1000;letter-spacing:-1.5px}
+h1 .stroke{-webkit-text-stroke:2px #fff;color:transparent}
+h1 .grad{background:linear-gradient(90deg,var(--cyan),var(--pink),var(--yellow));-webkit-background-clip:text;background-clip:text;color:transparent}
+h2{font-size:clamp(30px,5vw,56px);line-height:.95;font-weight:1000;letter-spacing:-1px;margin:6px 0 10px}
+h2 em{font-style:normal;background:linear-gradient(90deg,var(--cyan),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{opacity:.85;font-size:clamp(15px,2.2vw,19px);max-width:640px;line-height:1.45}
+/* bullets as cards */
+.grid{display:grid;gap:12px;margin-top:20px}
+.g2{grid-template-columns:repeat(2,1fr)} .g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+@media(max-width:760px){
+  #deck{scroll-snap-type:none}
+  .slide{min-height:auto;scroll-snap-align:none;padding:72px 16px 34px}
+  #dots{display:none}
+  .hint{display:none}
+  .tlCard{grid-template-columns:1fr}
+  .vs{grid-template-columns:1fr}
+  .x{transform:rotate(90deg)}
+}
+.bullet{background:var(--card);border:1px solid var(--stroke);border-radius:20px;padding:16px 16px 15px;
+  backdrop-filter:blur(10px);position:relative;overflow:hidden}
+/* conteúdo sempre visível (confiável p/ apresentação); .active só dá destaque */
+.active .bullet{border-color:rgba(255,255,255,.22)}
+.bullet:nth-child(1){transition-delay:.05s}.bullet:nth-child(2){transition-delay:.13s}
+.bullet:nth-child(3){transition-delay:.21s}.bullet:nth-child(4){transition-delay:.29s}
+.bullet:nth-child(5){transition-delay:.37s}.bullet:nth-child(6){transition-delay:.45s}
+.bullet::after{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(180deg,var(--cyan),var(--pink))}
+.bullet b{font-size:17px;display:block;margin-bottom:4px}
+.bullet span{opacity:.82;font-size:14.5px;line-height:1.45;display:block}
+.bullet .ico{font-size:28px;display:block;margin-bottom:8px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.5))}
+.bullet.hot{background:linear-gradient(135deg,rgba(255,46,209,.22),rgba(255,214,10,.14));border-color:rgba(255,46,209,.5)}
+.bullet.good{background:linear-gradient(135deg,rgba(0,240,255,.18),rgba(182,255,46,.12));border-color:rgba(0,240,255,.45)}
+.bullet.warn{background:linear-gradient(135deg,rgba(255,60,60,.22),rgba(255,46,209,.14));border-color:rgba(255,80,80,.55)}
+/* hero extras */
+.heroLayout{display:grid;grid-template-columns:1.15fr .85fr;gap:22px;align-items:center}
+@media(max-width:860px){.heroLayout{grid-template-columns:1fr}}
+.ctaRow{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.btn{border:0;cursor:pointer;font-weight:1000;font-size:16px;padding:15px 22px;border-radius:16px;
+  color:#000;background:linear-gradient(90deg,var(--lime),var(--cyan));box-shadow:0 10px 30px rgba(0,240,255,.35);
+  transition:transform .15s}
+.btn:hover{transform:scale(1.04) rotate(-1deg)}
+.btn.ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid var(--stroke);box-shadow:none}
+.heroImg{position:relative}
+.heroImg img{max-height:36vh;object-fit:contain;background:rgba(0,0,0,.35)}
+.heroImg img{width:100%;border-radius:26px;border:1px solid var(--stroke);display:block}
+.float{animation:float 5s ease-in-out infinite}
+.float2{animation:float 6.5s ease-in-out infinite reverse}
+@keyframes float{0%,100%{transform:translateY(0) rotate(0)}50%{transform:translateY(-14px) rotate(-1.2deg)}}
+.badge3d{position:absolute;padding:10px 14px;border-radius:16px;font-weight:900;font-size:13px;
+  background:#fff;color:#000;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+.glitch{position:relative;display:inline-block}
+.glitch::before,.glitch::after{content:attr(data-t);position:absolute;left:0;top:0;width:100%;overflow:hidden}
+.glitch::before{color:var(--cyan);z-index:-1;animation:gl1 2.4s infinite}
+.glitch::after{color:var(--pink);z-index:-2;animation:gl2 3.1s infinite}
+@keyframes gl1{0%,92%,100%{transform:none;opacity:0}93%{transform:translate(-3px,2px);opacity:.9}96%{transform:translate(3px,-1px);opacity:.9}}
+@keyframes gl2{0%,90%,100%{transform:none;opacity:0}91%{transform:translate(3px,1px);opacity:.9}95%{transform:translate(-3px,-2px);opacity:.9}}
+/* ticker */
+.ticker{position:absolute;left:0;right:0;bottom:0;white-space:nowrap;overflow:hidden;
+  border-top:1px solid var(--stroke);background:rgba(0,0,0,.55);padding:10px 0;font-weight:900;font-size:13px;letter-spacing:1.5px}
+.ticker div{display:inline-block;padding-left:100%;animation:tick 22s linear infinite}
+@keyframes tick{to{transform:translateX(-100%)}}
+/* timeline */
+.tlBtns{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.tlBtns button{border:1px solid var(--stroke);background:rgba(255,255,255,.07);color:#fff;font-weight:1000;
+  padding:11px 16px;border-radius:99px;cursor:pointer;font-size:14px}
+.tlBtns button.on{background:#fff;color:#000;transform:scale(1.05)}
+.tlCard{margin-top:14px;background:rgba(255,255,255,.07);border:1px solid var(--stroke);border-radius:22px;
+  padding:20px;display:grid;grid-template-columns:120px 1fr;gap:16px;align-items:center;min-height:170px}
+@media(max-width:640px){.tlCard{grid-template-columns:1fr}}
+.tlCard .year{font-size:44px;font-weight:1000;line-height:1;
+  background:linear-gradient(180deg,var(--yellow),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent}
+.tlCard ul{list-style:none;display:grid;gap:8px}
+.tlCard li{background:rgba(0,0,0,.35);border:1px solid var(--stroke);border-radius:12px;padding:10px 12px;font-size:15px}
+.tlCard li::before{content:"▸ ";color:var(--cyan);font-weight:900}
+/* split */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:center}
+@media(max-width:860px){.split{grid-template-columns:1fr}}
+.ph{border-radius:22px;overflow:hidden;border:1px solid var(--stroke);position:relative}
+.ph img{width:100%;display:block;transition:transform .6s}
+.split .ph img{max-height:56vh;object-fit:contain;background:rgba(0,0,0,.4)}
+.ph:hover img{transform:scale(1.02)}
+.ph figcaption{position:absolute;left:12px;bottom:12px;background:rgba(0,0,0,.65);padding:8px 12px;border-radius:12px;font-size:13px;font-weight:800;border:1px solid var(--stroke)}
+/* quiz */
+.quiz{background:rgba(255,255,255,.06);border:1px solid var(--stroke);border-radius:22px;padding:18px;margin-top:16px}
+.quiz h3{font-size:19px;margin-bottom:10px}
+.opt{display:block;width:100%;text-align:left;margin:8px 0;padding:13px 14px;border-radius:14px;cursor:pointer;
+  border:1px solid var(--stroke);background:rgba(0,0,0,.35);color:#fff;font-size:15px;font-weight:700}
+.opt:hover{border-color:var(--cyan)}
+.opt.ok{background:rgba(182,255,46,.2);border-color:var(--lime)}
+.opt.no{background:rgba(255,60,60,.22);border-color:#ff5050}
+#scorePop{position:fixed;right:16px;bottom:86px;z-index:60;background:#fff;color:#000;font-weight:1000;
+  padding:12px 16px;border-radius:16px;box-shadow:0 14px 40px rgba(0,0,0,.5);display:none;max-width:min(320px,80vw)}
+#scoreBadge{font-size:12px;font-weight:900;white-space:nowrap;background:rgba(255,255,255,.1);
+  border:1px solid var(--stroke);padding:7px 12px;border-radius:99px}
+/* nav */
+#dots{position:fixed;right:12px;top:50%;transform:translateY(-50%);z-index:50;display:flex;flex-direction:column;gap:8px}
+#dots a{width:11px;height:11px;border-radius:99px;background:rgba(255,255,255,.25);display:block;border:1px solid rgba(255,255,255,.3)}
+#dots a.on{background:var(--cyan);width:11px;height:28px}
+#prevNext{position:fixed;left:0;right:0;bottom:14px;z-index:50;display:flex;justify-content:center;gap:10px;pointer-events:none}
+#prevNext button{pointer-events:auto;width:52px;height:52px;border-radius:99px;border:1px solid var(--stroke);
+  background:rgba(255,255,255,.1);color:#fff;font-size:20px;cursor:pointer;backdrop-filter:blur(10px)}
+#prevNext button:hover{background:#fff;color:#000}
+.hint{position:fixed;left:16px;bottom:18px;z-index:50;font-size:11.5px;opacity:.65;font-weight:700}
+/* bg variants */
+.bg1{background:radial-gradient(900px 500px at 80% 10%,rgba(255,46,209,.25),transparent),radial-gradient(800px 500px at 10% 90%,rgba(0,240,255,.18),transparent)}
+.bg2{background:radial-gradient(800px 500px at 20% 20%,rgba(124,92,255,.35),transparent),radial-gradient(700px 500px at 90% 80%,rgba(0,240,255,.15),transparent)}
+.bg3{background:linear-gradient(180deg,rgba(0,240,255,.08),transparent),radial-gradient(700px 400px at 50% 0%,rgba(255,214,10,.18),transparent)}
+.bgDark{background:radial-gradient(800px 500px at 50% 0%,rgba(255,60,60,.18),transparent),radial-gradient(600px 500px at 90% 90%,rgba(255,46,209,.18),transparent)}
+.bigEmoji{font-size:clamp(60px,10vw,110px);line-height:1;filter:drop-shadow(0 10px 30px rgba(0,0,0,.6))}
+.marq{overflow:hidden;white-space:nowrap;margin-top:14px;opacity:.9;font-weight:1000;letter-spacing:2px;font-size:13px;color:var(--cyan)}
+.marq span{display:inline-block;padding-left:20px;animation:tick 14s linear infinite}
+.vs{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center;margin-top:16px}
+@media(max-width:700px){.vs{grid-template-columns:1fr}}
+.vsCard{border-radius:20px;padding:18px;border:1px solid var(--stroke)}
+.vsCard.good{background:linear-gradient(135deg,rgba(182,255,46,.18),rgba(0,240,255,.12))}
+.vsCard.bad{background:linear-gradient(135deg,rgba(255,60,60,.2),rgba(255,46,209,.12))}
+.vsCard h4{font-size:18px;margin-bottom:10px}
+.vsCard li{list-style:none;margin:8px 0;font-size:15px;background:rgba(0,0,0,.3);padding:9px 11px;border-radius:11px;border:1px solid rgba(255,255,255,.1)}
+.x{font-weight:1000;font-size:28px;background:#fff;color:#000;width:54px;height:54px;display:grid;place-items:center;border-radius:99px;margin:auto}
+.finalPhrase{font-size:clamp(24px,4.5vw,44px);font-weight:1000;line-height:1.28;margin-top:14px}
+.finalPhrase mark{background:linear-gradient(90deg,var(--lime),var(--cyan));color:#000;padding:2px 12px;border-radius:10px;display:inline-block;margin-top:10px}
+/* TELA FINAL — imagens ao fundo, sem corte, texto por cima */
+.finalSlide{overflow:hidden}
+.finalBg{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.finalBg img{position:absolute;border:0 !important;background:transparent !important;object-fit:contain !important;
+  width:auto;height:auto;max-width:44vw;max-height:82vh;transition:none}
+.finalBg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(7,11,24,.35),rgba(7,11,24,.15) 40%,rgba(7,11,24,.55));pointer-events:none}
+.finalBg img.fb1{left:1%;bottom:0;height:80vh;max-width:36vw;opacity:.7;
+  filter:drop-shadow(0 20px 60px rgba(0,240,255,.2))}
+.finalBg img.fb2{right:1%;top:2%;height:66vh;max-width:40vw;opacity:.28}
+.finalSlide .finalWrap{position:relative;z-index:2;text-align:center;max-width:880px}
+.finalSlide .finalWrap .grid{text-align:left;max-width:700px;margin-left:auto;margin-right:auto}
+.finalSlide h2,.finalSlide .finalPhrase{text-shadow:0 3px 24px rgba(0,0,0,.85),0 1px 0 rgba(0,0,0,.6)}
+.finalSlide .finalWrap::before{content:"";position:absolute;inset:-26px -30px;z-index:-1;
+  background:radial-gradient(closest-side,rgba(7,11,24,.78),rgba(7,11,24,.45),transparent);
+  border-radius:30px;pointer-events:none}
+.finalSlide h2 em{background:none !important;-webkit-background-clip:border-box !important;background-clip:border-box !important;
+  color:#fff !important;-webkit-text-fill-color:#fff !important}
+.finalSlide .finalPhrase{text-shadow:0 2px 18px rgba(0,0,0,.9)}
+.finalSlide .bullet,.finalSlide .finalScoreLine{box-shadow:0 8px 30px rgba(0,0,0,.35)}
+.finalScoreLine{display:inline-block;margin-top:18px;background:#fff;color:#000;font-weight:1000;
+  font-size:15px;padding:11px 18px;border-radius:99px;box-shadow:0 12px 30px rgba(0,0,0,.45)}
+/* DECOR DE FUNDO — mesmo estilo da tela final p/ todas as telas com imagem */
+.bgDecor{position:absolute;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.bgDecor img{position:absolute;object-fit:contain !important;background:transparent !important;border:0 !important;
+  width:auto;height:auto;max-width:44vw;max-height:82vh;filter:drop-shadow(0 20px 60px rgba(0,240,255,.18))}
+.bgDecor::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(7,11,24,.45),rgba(7,11,24,.15) 40%,rgba(7,11,24,.6))}
+.slide .wrap{position:relative;z-index:2}
+.bgDecor .d-right{right:1%;top:0;bottom:0;margin-top:auto;margin-bottom:auto;opacity:.8}
+.bgDecor .d-left{left:1%;top:0;bottom:0;margin-top:auto;margin-bottom:auto;opacity:.8}
+.bgDecor .d-photo{mix-blend-mode:screen}
+.bgDecor .d-photo{
+  border-radius:24px !important;
+  -webkit-mask-image:radial-gradient(ellipse at center,#000 52%,transparent 80%);
+  mask-image:radial-gradient(ellipse at center,#000 52%,transparent 80%);
+}
+.bgDecor .d-full{
+  left:0 !important;right:0 !important;top:0 !important;bottom:0 !important;
+  width:100% !important;height:100% !important;
+  max-width:none !important;max-height:none !important;margin:0 !important;
+  object-fit:cover !important;animation:none !important;
+  border-radius:0 !important;
+  -webkit-mask-image:radial-gradient(ellipse at center,#000 60%,transparent 95%);
+  mask-image:radial-gradient(ellipse at center,#000 60%,transparent 95%);
+}
+.bgDecor .d-shiftR{transform:translateX(34px)}
+@media(max-width:860px){
+  .bgDecor .d-shiftR{transform:none}
+}
+.bgDecor .d-free,.finalBg .d-free{translate:var(--ex,0px) var(--ey,0px);scale:var(--es,1)}
+@media(max-width:860px){
+  .bgDecor .d-free,.finalBg .d-free{translate:0 0;scale:1}
+}
+.bgDecor .d-fade{
+  -webkit-mask-image:linear-gradient(to right,transparent 0,#000 var(--fx,55%)) !important;
+  mask-image:linear-gradient(to right,transparent 0,#000 var(--fx,55%)) !important;
+}
+/* painel do editor de imagens (oculto na apresentação; tecla E abre/fecha) */
+#imgEditor{position:fixed;right:12px;top:60px;z-index:200;width:292px;max-height:82vh;overflow-y:auto;text-align:left;
+  background:rgba(10,14,30,.96);border:1px solid var(--stroke);border-radius:16px;padding:14px;
+  color:#fff;font-size:13px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+#imgEditor h3{font-size:14px;margin:0 0 4px;display:flex;justify-content:space-between;align-items:center}
+#imgEditor h4{font-size:12px;margin:10px 0 4px;color:var(--cyan)}
+#imgEditor label{display:grid;grid-template-columns:80px 1fr 44px;gap:6px;align-items:center;margin:5px 0}
+#imgEditor input[type=range]{width:100%;accent-color:var(--cyan)}
+#imgEditor .val{text-align:right;opacity:.8;font-size:12px}
+#imgEditor .rowBtns{display:flex;gap:6px;margin-top:10px}
+#imgEditor .rowBtns button{flex:1;border:1px solid var(--stroke);background:rgba(255,255,255,.1);
+  color:#fff;border-radius:10px;padding:8px 4px;font-weight:800;font-size:12px;cursor:pointer}
+#imgEditor .rowBtns button:hover{background:#fff;color:#000}
+#imgEditor small{opacity:.65;line-height:1.45;display:block;margin-top:8px;font-size:11.5px}
+#imgEditor #edClose{flex:0 0 auto;border:1px solid var(--stroke);background:rgba(255,255,255,.1);
+  color:#fff;border-radius:8px;padding:2px 8px;font-size:12px;cursor:pointer}
+.bgDecor .d-faint{opacity:.32;filter:none}
+.bgDecor .d-mid{opacity:.55;filter:none}
+/* mantém flutuação mesmo ao fundo */
+.bgDecor .float{animation:float 5s ease-in-out infinite}
+.bgDecor .float2{animation:float 6.5s ease-in-out infinite reverse}
+@media(max-width:860px){
+  .bgDecor img{max-width:80vw;max-height:46vh;opacity:.35 !important}
+  .bgDecor .d-right{right:-4%;top:auto;bottom:0;transform:none}
+  .bgDecor .d-left{left:-4%;top:auto;bottom:0;transform:none}
+}
+@media(max-width:860px){
+  .finalBg img.fb1{height:52vh;max-width:60vw;left:-4%;opacity:.5}
+  .finalBg img.fb2{height:42vh;max-width:70vw;right:-6%;opacity:.32}
+}
+/* telas baixas (projetor 768px etc): compacta tudo */
+@media (max-height:820px){
+  .slide{padding:58px 16px 76px}
+  h1{font-size:clamp(32px,5.5vw,60px)}
+  h2{font-size:clamp(24px,3.6vw,40px);margin:4px 0 6px}
+  .grid{gap:10px;margin-top:14px}
+  .bullet{padding:11px 12px}
+  .bullet .ico{font-size:22px;margin-bottom:4px}
+  .bullet b{font-size:15.5px;margin-bottom:2px}
+  .bullet span{font-size:13.5px;line-height:1.35}
+  .heroImg img{max-height:34vh;object-fit:contain}
+  .heroImg img + img{margin-top:8px !important}
+  .heroImg img.hideShort{display:none}
+  .split .ph img{max-height:44vh}
+  .grid.tlPhotos{display:none}
+  .bigEmoji{font-size:clamp(44px,7vw,70px)}
+  .finalPhrase{font-size:clamp(19px,3vw,30px)}
+  .btn{padding:12px 18px;font-size:14px}
+  .tlCard{min-height:130px;padding:14px}
+  .quiz{padding:13px}
+  .quiz h3{font-size:17px}
+  .opt{padding:10px 12px;font-size:14px}
+}
+</style>
+
+<canvas id="stars"></canvas>
+
+<div id="hud">
+  <div class="logo">EVOLU<b>ÇÃO</b> DIGITAL ⚡</div>
+  <div id="barWrap"><div id="bar"></div></div>
+  <div id="count">1 / 10</div>
+  <div id="scoreBadge" title="pontos do quiz">⭐ <span id="scoreTxt">0</span>/3</div>
+  <button id="fsBtn" title="tela cheia">⛶ TELA CHEIA</button>
+</div>
+
+<div id="dots"></div>
+<div id="prevNext"><button id="prevBtn">↑</button><button id="nextBtn">↓</button></div>
+<div class="hint">↑ ↓ ou arraste • F = tela cheia</div>
+<div id="scorePop"></div>
+
+<aside id="imgEditor" hidden>
+  <h3>🎛️ Ajustar imagens <button id="edClose" title="fechar">✕</button></h3>
+  <h4>Tela 1 • Globo</h4>
+  <label>Horizontal <input type="range" id="ed0x" min="-250" max="300" step="1" value="0"><span class="val" id="ed0xv"></span></label>
+  <label>Vertical <input type="range" id="ed0y" min="-200" max="200" step="1" value="0"><span class="val" id="ed0yv"></span></label>
+  <label>Tamanho <input type="range" id="ed0s" min="50" max="200" step="1" value="100"><span class="val" id="ed0sv"></span></label>
+  <label>Opacidade <input type="range" id="ed0o" min="10" max="100" step="1" value="65"><span class="val" id="ed0ov"></span></label>
+  <h4>Tela 2 • Personagem</h4>
+  <label>Horizontal <input type="range" id="ed1x" min="-250" max="300" step="1" value="0"><span class="val" id="ed1xv"></span></label>
+  <label>Vertical <input type="range" id="ed1y" min="-200" max="200" step="1" value="0"><span class="val" id="ed1yv"></span></label>
+  <label>Tamanho <input type="range" id="ed1s" min="50" max="200" step="1" value="100"><span class="val" id="ed1sv"></span></label>
+  <label>Opacidade <input type="range" id="ed1o" min="10" max="100" step="1" value="100"><span class="val" id="ed1ov"></span></label>
+  <h4>Tela 3 • Cidade (fundo)</h4>
+  <label>Horizontal <input type="range" id="ed2bx" min="-250" max="300" step="1" value="0"><span class="val" id="ed2bxv"></span></label>
+  <label>Vertical <input type="range" id="ed2by" min="-200" max="200" step="1" value="0"><span class="val" id="ed2byv"></span></label>
+  <label>Tamanho <input type="range" id="ed2bs" min="100" max="200" step="1" value="100"><span class="val" id="ed2bsv"></span></label>
+  <label>Opacidade <input type="range" id="ed2bo" min="10" max="100" step="1" value="35"><span class="val" id="ed2bov"></span></label>
+  <h4>Tela 3 • Processador</h4>
+  <label>Horizontal <input type="range" id="ed3x" min="-250" max="300" step="1" value="120"><span class="val" id="ed3xv"></span></label>
+  <label>Vertical <input type="range" id="ed3y" min="-200" max="200" step="1" value="0"><span class="val" id="ed3yv"></span></label>
+  <label>Tamanho <input type="range" id="ed3s" min="100" max="180" step="1" value="100"><span class="val" id="ed3sv"></span></label>
+  <label>Opacidade <input type="range" id="ed3o" min="10" max="100" step="1" value="55"><span class="val" id="ed3ov"></span></label>
+  <label>Fade <input type="range" id="ed3f" min="0" max="100" step="1" value="55"><span class="val" id="ed3fv"></span></label>
+  <h4>Tela 4 • Estudante</h4>
+  <label>Horizontal <input type="range" id="ed4x" min="-250" max="300" step="1" value="0"><span class="val" id="ed4xv"></span></label>
+  <label>Vertical <input type="range" id="ed4y" min="-200" max="200" step="1" value="0"><span class="val" id="ed4yv"></span></label>
+  <label>Tamanho <input type="range" id="ed4s" min="50" max="200" step="1" value="100"><span class="val" id="ed4sv"></span></label>
+  <label>Opacidade <input type="range" id="ed4o" min="10" max="100" step="1" value="100"><span class="val" id="ed4ov"></span></label>
+  <h4>Tela 6 • Humano digital</h4>
+  <label>Horizontal <input type="range" id="ed6x" min="-250" max="300" step="1" value="50"><span class="val" id="ed6xv"></span></label>
+  <label>Vertical <input type="range" id="ed6y" min="-200" max="200" step="1" value="0"><span class="val" id="ed6yv"></span></label>
+  <label>Tamanho <input type="range" id="ed6s" min="100" max="180" step="1" value="100"><span class="val" id="ed6sv"></span></label>
+  <label>Opacidade <input type="range" id="ed6o" min="10" max="100" step="1" value="60"><span class="val" id="ed6ov"></span></label>
+  <label>Fade <input type="range" id="ed6f" min="0" max="100" step="1" value="55"><span class="val" id="ed6fv"></span></label>
+  <h4>Tela 8 • Cidade</h4>
+  <label>Horizontal <input type="range" id="ed7x" min="-250" max="300" step="1" value="0"><span class="val" id="ed7xv"></span></label>
+  <label>Vertical <input type="range" id="ed7y" min="-200" max="200" step="1" value="0"><span class="val" id="ed7yv"></span></label>
+  <label>Tamanho <input type="range" id="ed7s" min="100" max="200" step="1" value="100"><span class="val" id="ed7sv"></span></label>
+  <label>Opacidade <input type="range" id="ed7o" min="10" max="100" step="1" value="45"><span class="val" id="ed7ov"></span></label>
+  <h4>Tela 10 • Mão robô</h4>
+  <label>Horizontal <input type="range" id="ed9ax" min="-250" max="300" step="1" value="0"><span class="val" id="ed9axv"></span></label>
+  <label>Vertical <input type="range" id="ed9ay" min="-200" max="200" step="1" value="0"><span class="val" id="ed9ayv"></span></label>
+  <label>Tamanho <input type="range" id="ed9as" min="50" max="200" step="1" value="100"><span class="val" id="ed9asv"></span></label>
+  <label>Opacidade <input type="range" id="ed9ao" min="10" max="100" step="1" value="70"><span class="val" id="ed9aov"></span></label>
+  <h4>Tela 10 • Círculo tech</h4>
+  <label>Horizontal <input type="range" id="ed9bx" min="-250" max="300" step="1" value="0"><span class="val" id="ed9bxv"></span></label>
+  <label>Vertical <input type="range" id="ed9by" min="-200" max="200" step="1" value="0"><span class="val" id="ed9byv"></span></label>
+  <label>Tamanho <input type="range" id="ed9bs" min="50" max="200" step="1" value="100"><span class="val" id="ed9bsv"></span></label>
+  <label>Opacidade <input type="range" id="ed9bo" min="10" max="100" step="1" value="28"><span class="val" id="ed9bov"></span></label>
+  <div class="rowBtns">
+    <button id="edSave">💾 Salvar</button>
+    <button id="edReset">↺ Padrão</button>
+    <button id="edCopy">📋 Copiar</button>
+  </div>
+  <small>Tecla <b>E</b> abre/fecha este painel. "Salvar" guarda neste navegador. "Copiar" copia os valores — me envie para valer para todos.</small>
+</aside>
+
+<div id="deck">
+
+  <!-- 1 CAPA -->
+  <section class="slide bg1" data-title="Capa">
+    <div class="bgDecor" aria-hidden="true">
+      <img id="bgImg0" class="d-full d-photo d-free" style="opacity:.65;object-position:72% 38%" src="src/img-image1.jpeg" alt="">
+      <div class="badge3d float2" style="position:absolute;top:14%;right:6%">🌍 TODO MUNDO conectado</div>
+      <div class="badge3d float" style="position:absolute;bottom:20%;right:4%">🤖 VOCÊ + internet = futuro</div>
+    </div>
+    <div class="wrap">
+      <div class="kicker">🚀 uma aventura interativa • 10 partes</div>
+      <h1><span class="glitch" data-t="A EVOLUÇÃO">A EVOLUÇÃO</span><br><span class="grad">DIGITAL</span></h1>
+      <p class="sub" style="margin-top:12px">O que a internet tem de bom, os cuidados que ela pede e como usar bem. Direto ao ponto, com jogo e diversão.</p>
+      <div class="grid g3" style="max-width:760px">
+        <div class="bullet good"><span class="ico">🟢</span><b>Benefícios</b><span>a parte boa</span></div>
+        <div class="bullet warn"><span class="ico">🔴</span><b>Cuidados</b><span>os perigos</span></div>
+        <div class="bullet hot"><span class="ico">🟡</span><b>Desafios</b><span>para vencer no final</span></div>
+      </div>
+      <div class="ctaRow">
+        <button class="btn" onclick="go(1)">COMEÇAR ▶</button>
+        <button class="btn ghost" onclick="go(8)">ir para o jogo 🎮</button>
+      </div>
+    </div>
+    <div class="ticker"><div>INTERNET É LEGAL ✦ CUIDADO COM MENTIRAS ✦ HORA DE BRINCAR TAMBÉM ✦ SUA ESCOLHA FAZ DIFERENÇA ✦ INTERNET É LEGAL ✦ CUIDADO COM MENTIRAS ✦&nbsp;</div></div>
+  </section>
+
+  <!-- 2 INTRO -->
+  <section class="slide bg2" data-title="Intro">
+    <div class="bgDecor" aria-hidden="true">
+      <img id="bgImg1" class="float d-right d-free" style="height:80vh;max-width:38vw" src="src/img-image38.png" alt="">
+    </div>
+    <div class="wrap">
+      <div class="kicker cyan">MISSÃO 01 • O COMEÇO</div>
+      <h2>A internet está <em>em todo lugar</em></h2>
+      <p class="sub">Ela está no celular, na escola e em casa: usamos todo dia.</p>
+      <div class="grid g2" style="max-width:680px">
+        <div class="bullet"><span class="ico">📱</span><b>Tudo no celular</b><span>estudar e falar com a família</span></div>
+        <div class="bullet"><span class="ico">🌍</span><b>Mundo pertinho</b><span>falar com quem mora longe</span></div>
+        <div class="bullet"><span class="ico">⚖️</span><b>Tem dois lados</b><span>ajuda muito, mas também tem perigo</span></div>
+        <div class="bullet"><span class="ico">🧠</span><b>Use com cuidado</b><span>aproveite o bom e fuja do ruim</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 TIMELINE -->
+  <section class="slide bg3" data-title="História">
+    <div class="bgDecor" aria-hidden="true">
+      <img id="bgImg2b" class="d-full d-photo d-free" style="opacity:.35" src="src/img-image31.jpeg" alt="">
+      <img id="bgImg3" class="d-full d-photo d-free d-fade" style="--ex:120px;--ey:0px;--es:1;opacity:.55;object-position:68% 50%" src="src/img-image4.jpeg" alt="">
+    </div>
+    <div class="wrap">
+      <div class="kicker yellow">MISSÃO 02 • VIAGEM NO TEMPO</div>
+      <h2>Uma <em>viagem no tempo</em> 🕹️</h2>
+      <p class="sub">Clique nos botões e veja como tudo mudou:</p>
+      <div class="tlBtns">
+        <button class="on" onclick="tl(0,this)">1990s 📼</button>
+        <button onclick="tl(1,this)">2000s 📲</button>
+        <button onclick="tl(2,this)">2010s 📺</button>
+        <button onclick="tl(3,this)">HOJE 🤖</button>
+      </div>
+      <div class="tlCard">
+        <div class="year" id="tlYear">1990s</div>
+        <ul id="tlList"></ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4 BENEFICIOS -->
+  <section class="slide bg1" data-title="Benefícios">
+    <div class="bgDecor" aria-hidden="true">
+      <img id="bgImg4" class="float d-right d-free" style="height:82vh;max-width:36vw" src="src/img-image37.png" alt="">
+    </div>
+    <div class="wrap">
+      <div class="kicker">MISSÃO 03 • O LADO BOM 🟢</div>
+      <h2>Internet que <em>ajuda muito</em></h2>
+      <div class="grid g2" style="max-width:700px">
+        <div class="bullet good"><span class="ico">🔍</span><b>Descobrir rapidinho</b><span>perguntou, achou</span></div>
+        <div class="bullet good"><span class="ico">🎓</span><b>Estudar em casa</b><span>aula até de pijama</span></div>
+        <div class="bullet good"><span class="ico">💬</span><b>Falar com quem mora longe</b><span>ver a vovó na telinha</span></div>
+        <div class="bullet good"><span class="ico">💸</span><b>Criar uma lojinha</b><span>vender coisas pela internet</span></div>
+        <div class="bullet good"><span class="ico">🏥</span><b>Resolver tudo no celular</b><span>médico e recados no app</span></div>
+        <div class="bullet good"><span class="ico">🚀</span><b>Ideias viram novidade</b><span>inventar coisas legais</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 RISCOS -->
+  <section class="slide bgDark" data-title="Riscos">
+    <div class="wrap">
+      <div class="kicker pink">MISSÃO 04 • CUIDADO! 🔴</div>
+      <h2>Cuidado: também tem <em style="background:linear-gradient(90deg,#ff5050,#ff2ed1);-webkit-background-clip:text;background-clip:text;color:transparent">perigo</em> por aqui</h2>
+      <div class="grid g3">
+        <div class="bullet warn"><span class="ico">🚨</span><b>Notícias mentirosas</b><span>nem tudo é verdade — pergunte a um adulto</span></div>
+        <div class="bullet warn"><span class="ico">⏳</span><b>Tempo demais na tela</b><span>cuidado para não esquecer de brincar</span></div>
+        <div class="bullet warn"><span class="ico">🕵️</span><b>Segredos protegidos</b><span>nunca passe endereço, escola ou senha</span></div>
+        <div class="bullet warn"><span class="ico">😰</span><b>Sentimentos</b><span>se algo te deixar triste, conte para alguém</span></div>
+        <div class="bullet warn"><span class="ico">🚫</span><b>Apelidos maldosos</b><span>brincadeira que machuca não é brincadeira</span></div>
+        <div class="bullet warn"><span class="ico">🧟</span><b>Corpo em movimento</b><span>brincar e correr também é preciso</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 DESAFIOS -->
+  <section class="slide bg2" data-title="Desafios">
+    <div class="bgDecor" aria-hidden="true">
+      <img id="bgImg6" class="d-full d-photo d-free d-fade" style="--ex:50px;--ey:0px;--es:1;opacity:.6;object-position:70% 30%" src="src/img-image49.jpeg" alt="">
+    </div>
+    <div class="wrap">
+      <div class="kicker yellow">MISSÃO 05 • 4 DESAFIOS 👾</div>
+      <h2>4 desafios para <em>vencer o jogo</em></h2>
+      <div class="grid" style="max-width:560px">
+        <div class="bullet hot"><b>⚖️ 1. Todo mundo conectado</b><span>tem criança sem internet — isso precisa mudar</span></div>
+        <div class="bullet hot"><b>🧘 2. Hora da tela, hora de brincar</b><span>saber a hora de desligar</span></div>
+        <div class="bullet hot"><b>🛡️ 3. Regras que protegem</b><span>contra golpes e perigos</span></div>
+        <div class="bullet hot"><b>🤖 4. Robôs com cuidado</b><span>eles ajudam, mas quem decide é a gente</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 EDUCACAO -->
+  <section class="slide bg3" data-title="Educação">
+    <div class="wrap">
+      <div class="kicker cyan">MISSÃO 06 • A ESCOLA MUDOU</div>
+      <h2>Aula <em>em todo lugar</em> 🏫➡️💻</h2>
+      <div class="vs">
+        <div class="vsCard good"><h4>✅ PARTE BOA</h4><ul>
+          <li>📚 aula em casa, até de pijama</li>
+          <li>🎬 vídeos e jogos para aprender</li>
+          <li>🌍 quem mora longe aprende junto</li>
+          <li>🧩 cada um no seu ritmo</li>
+        </ul></div>
+        <div class="x">VS</div>
+        <div class="vsCard bad"><h4>⚠️ PARTE RUIM</h4><ul>
+          <li>📶 internet fraca atrapalha</li>
+          <li>🎮 joguinhos podem distrair</li>
+          <li>😴 sem atenção, nada entra na cabeça</li>
+          <li>👩‍🏫 professor também precisa de ajuda</li>
+        </ul></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 SOCIEDADE -->
+  <section class="slide bg1" data-title="Sociedade">
+    <div class="bgDecor" aria-hidden="true">
+      <img id="bgImg7" class="d-full d-photo d-free" style="opacity:.45" src="src/img-image51.jpeg" alt="">
+    </div>
+    <div class="wrap">
+      <div>
+        <div class="kicker">MISSÃO 07 • TUDO MUDOU</div>
+        <h2>Tudo ficou <em>diferente</em></h2>
+        <div class="grid g2" style="max-width:700px">
+          <div class="bullet"><span class="ico">💼</span><b>Trabalhos novos</b><span>gente trabalhando de casa</span></div>
+          <div class="bullet"><span class="ico">💬</span><b>Amizades</b><span>amigos perto mesmo estando longe</span></div>
+          <div class="bullet"><span class="ico">🛒</span><b>Comprar e vender</b><span>lojinhas na internet para todos</span></div>
+          <div class="bullet"><span class="ico">🎭</span><b>Diversão</b><span>vídeos e brincadeiras para rir junto</span></div>
+        </div>
+      </div>
+      <div>
+        <figure style="display:none"><img src="src/img-image51.jpeg" alt=""></figure>
+        <div class="quiz" style="margin-top:12px;max-width:700px"><h3>📢 Ajudar de verdade</h3><span style="opacity:.85;font-size:14px">Campanhas do bem ganham força na internet — ajudar é uma missão de herói.</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 QUIZ -->
+  <section class="slide bg2" data-title="Quiz">
+    <div class="wrap">
+      <div class="kicker yellow">MISSÃO 08 • HORA DO JOGO 🧠</div>
+      <h2>Você usa a internet <em>com cuidado?</em></h2>
+      <p class="sub">Responda com atenção. Valendo pontos! 👇</p>
+      <div class="grid g2">
+        <div class="quiz" id="q1"><h3>1️⃣ Chegou uma notícia estranha no celular. Você…</h3>
+          <button class="opt" onclick="answer(1,false,this)">Mando para todo mundo na hora 🔥</button>
+          <button class="opt" onclick="answer(1,true,this)">Peço para um adulto conferir se é verdade ✅</button>
+          <button class="opt" onclick="answer(1,false,this)">Nem ligo e saio clicando em tudo 💤</button>
+        </div>
+        <div class="quiz" id="q2"><h3>2️⃣ Já está tarde e você ainda no tablet…</h3>
+          <button class="opt" onclick="answer(2,false,this)">Só mais um joguinho… (1 hora depois) 📱</button>
+          <button class="opt" onclick="answer(2,true,this)">Desligo e vou dormir 😴</button>
+          <button class="opt" onclick="answer(2,false,this)">Continuo, todo mundo faz 🤷</button>
+        </div>
+      </div>
+      <div class="quiz" id="q3" style="margin-top:12px"><h3>3️⃣ Um colega recebe apelidos maldosos na internet. Você…</h3>
+        <div class="grid g3" style="margin-top:8px">
+          <button class="opt" onclick="answer(3,false,this)">Dou risada, é só brincadeira 😬</button>
+          <button class="opt" onclick="answer(3,true,this)">Defendo e conto para a professora 🛡️</button>
+          <button class="opt" onclick="answer(3,false,this)">Só olho e não faço nada 👀</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 10 FINAL -->
+  <!-- 10 FINAL (tela de encerramento p/ apresentação — sem botões, imagens ao fundo sem corte) -->
+  <section class="slide bg1 finalSlide" data-title="Missão">
+    <div class="finalBg" aria-hidden="true">
+      <img id="bgImg9a" class="float fb1 d-free" src="src/img-image36.png" alt="">
+      <img id="bgImg9b" class="float2 fb2 d-free" src="src/img-image52.png" alt="">
+    </div>
+    <div class="wrap finalWrap">
+      <div class="kicker">MISSÃO FINAL 🏁</div>
+      <h2>A internet veio <em>para ficar.</em> Usar bem <em>depende de você.</em></h2>
+      <div class="grid">
+        <div class="bullet good"><b>✅ Sua lista de herói</b><span>verdade, não mentira • respeito, não apelido • brincar, não só tela • criar, não só assistir</span></div>
+        <div class="bullet"><b>🌍 Todo mundo junto</b><span>família + escola + VOCÊ</span></div>
+      </div>
+      <p class="finalPhrase">O futuro não depende só da tecnologia. <mark>Depende de você.</mark></p>
+      <div class="finalScoreLine">⭐ sua pontuação: <span id="finalScore">0</span>/3</div>
+    </div>
+  </section>
+
+</div>
+
+<script>
+let cur = 0, score = 0, answered = {};
+let io = null, scrollT = null, moT = null;
+const freshSlides = () => [...document.querySelectorAll('.slide')];
+const freshDots = () => [...document.querySelectorAll('#dots a')];
+
+function setCur(i){
+  const slides = freshSlides();
+  if(!slides.length) return;
+  i=Math.max(0,Math.min(slides.length-1,i));
+  const bar=document.getElementById('bar'), count=document.getElementById('count');
+  const dots=freshDots();
+  cur=i;
+  slides.forEach((s,k)=>s.classList.toggle('active',k===cur));
+  if(bar) bar.style.width=((cur+1)/slides.length*100)+'%';
+  if(count) count.textContent=(cur+1)+' / '+slides.length;
+  dots.forEach((d,k)=>d.classList.toggle('on',k===cur));
+}
+
+function go(i){
+  const slides = freshSlides();
+  if(!slides.length) return;
+  i=Math.max(0,Math.min(slides.length-1,i));
+  setCur(i);
+  slides[i].scrollIntoView({behavior:'smooth'});
+}
+window.go = go;
+
+function initNav(){
+  const deck=document.getElementById('deck');
+  const slides=freshSlides();
+  const dotsBox=document.getElementById('dots');
+  if(!deck || !slides.length) return;
+  /* rebuild dots */
+  if(dotsBox && dotsBox.children.length!==slides.length){
+    dotsBox.innerHTML='';
+    slides.forEach((s,i)=>{
+      const a=document.createElement('a'); a.href='#';
+      a.onclick=(e)=>{e.preventDefault();go(i)};
+      dotsBox.appendChild(a);
+    });
+  } else if(dotsBox){
+    [...dotsBox.children].forEach((a,i)=>{ a.onclick=(e)=>{e.preventDefault();go(i)}; });
+  }
+  /* observe fresh slides */
+  if(io) io.disconnect();
+  io=new IntersectionObserver(es=>{
+    const sl=freshSlides();
+    let best=-1,bestRatio=0;
+    es.forEach(en=>{
+      if(en.isIntersecting){
+        const idx=sl.indexOf(en.target);
+        if(idx>=0 && en.intersectionRatio>bestRatio){bestRatio=en.intersectionRatio;best=idx}
+      }
+    });
+    if(best>=0) setCur(best);
+  },{root:deck,threshold:[0,.25,.55,.75,1]});
+  slides.forEach(s=>io.observe(s));
+  /* scroll fallback (reattach only on new deck node) */
+  if(!deck.dataset.scrollHook){
+    deck.dataset.scrollHook="1";
+    deck.addEventListener('scroll',()=>{
+      clearTimeout(scrollT);
+      scrollT=setTimeout(()=>{
+        const d=document.getElementById('deck');
+        const sl=freshSlides();
+        if(!d||!sl.length) return;
+        const mid=d.scrollTop+d.clientHeight/2;
+        let bi=0,bd=Infinity;
+        sl.forEach((s,i)=>{
+          const c=s.offsetTop+s.offsetHeight/2;
+          const dd=Math.abs(c-mid);
+          if(dd<bd){bd=dd;bi=i}
+        });
+        setCur(bi);
+      },80);
+    },{passive:true});
+  }
+  setCur(Math.min(cur,slides.length-1));
+}
+
+/* one-time global buttons */
+if(!window.__deckNav){
+  window.__deckNav=true;
+  document.getElementById('prevBtn').onclick=()=>go(cur-1);
+  document.getElementById('nextBtn').onclick=()=>go(cur+1);
+  document.getElementById('fsBtn').onclick=()=>{
+    if(!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+    else document.exitFullscreen();
+  };
+  document.addEventListener('keydown',e=>{
+    const tag=(document.activeElement&&document.activeElement.tagName)||'';
+    if(e.key.toLowerCase()==='e'&&tag!=='INPUT'&&tag!=='TEXTAREA'){
+      const p=document.getElementById('imgEditor');
+      if(p){ p.hidden=!p.hidden; }
+      return;
+    }
+    if(e.key==='ArrowDown'||e.key===' '||e.key==='PageDown'){e.preventDefault();go(cur+1)}
+    if(e.key==='ArrowUp'||e.key==='PageUp'){e.preventDefault();go(cur-1)}
+    if(e.key.toLowerCase()==='f'){const b=document.getElementById('fsBtn'); if(b) b.click();}
+  });
+}
+initNav();
+/* poller de segurança: corrige a tela ativa mesmo se o navegador pausar observers/eventos */
+if(!window.__deckPoll){
+  window.__deckPoll=setInterval(()=>{
+    try{
+      const d=document.getElementById('deck');
+      const sl=[...document.querySelectorAll('.slide')];
+      if(!d||!sl.length) return;
+      const dr=d.getBoundingClientRect();
+      const mid=(dr.top+dr.bottom)/2;
+      let bi=0,bd=Infinity;
+      sl.forEach((s,i)=>{
+        const r=s.getBoundingClientRect();
+        const dd=Math.abs(((r.top+r.bottom)/2)-mid);
+        if(dd<bd){bd=dd;bi=i}
+      });
+      if(bi!==cur) setCur(bi);
+    }catch(e){}
+  },600);
+}
+/* re-init when the engine re-renders slides (preview) */
+if(!window.__deckMO && ('MutationObserver' in window)){
+  window.__deckMO=true;
+  new MutationObserver(()=>{
+    clearTimeout(moT);
+    moT=setTimeout(initNav,200);
+  }).observe(document.body,{childList:true,subtree:true});
+}
+
+/* timeline */
+const TL=[
+  {y:'1990s',items:['🐢 Internet lenta que fazia barulho','📚 Aprender no computador ficou divertido','💡 Conversar ficou mais rápido']},
+  {y:'2000s',items:['📲 Celular virou um mini computador','👫 Chegaram as redes sociais','⚡ Falar com o mundo na mesma hora']},
+  {y:'2010s',items:['📺 Filmes e músicas na hora que quiser','🛵 Comida e carro pelo celular','🏠 Quase tudo sem sair de casa']},
+  {y:'HOJE',items:['🤖 Robôs e casas inteligentes','🧸 Brinquedos e aparelhos conectados','💧 Internet virou necessidade, como água e luz']}
+];
+function tl(i,btn){
+  document.querySelectorAll('.tlBtns button').forEach(b=>b.classList.remove('on'));
+  if(btn) btn.classList.add('on');
+  document.getElementById('tlYear').textContent=TL[i].y;
+  document.getElementById('tlList').innerHTML=TL[i].items.map(t=>'<li>'+t+'</li>').join('');
+}
+window.tl=tl; window.go=go;
+tl(0,null);
+if(typeof initNav==='function') initNav();
+/* keep timeline filled after engine re-renders */
+if(!window.__tlMO && ('MutationObserver' in window)){
+  window.__tlMO=true;
+  let tlT=null;
+  new MutationObserver(()=>{
+    clearTimeout(tlT);
+    tlT=setTimeout(()=>{
+      const ul=document.getElementById('tlList');
+      if(ul && !ul.children.length){ try{ tl(0,null); }catch(e){} }
+      if(typeof initNav==='function'){ try{ initNav(); }catch(e){} }
+    },250);
+  }).observe(document.body,{childList:true,subtree:true});
+}
+
+/* quiz */
+function answer(q,correct,btn){
+  if(answered[q]) return;
+  answered[q]=true;
+  const box=document.getElementById('q'+q);
+  [...box.querySelectorAll('.opt')].forEach(o=>o.disabled=true);
+  if(correct){ btn.classList.add('ok'); score++; pop('+1 ponto! 🎉'); }
+  else{
+    btn.classList.add('no');
+    [...box.querySelectorAll('.opt')].forEach(o=>{ if(o.getAttribute('onclick').includes('true')) o.classList.add('ok'); });
+    pop('quase! a resposta certa ficou verdinha ✅');
+  }
+  document.getElementById('scoreTxt').textContent=score;
+  document.getElementById('finalScore').textContent=score;
+  if(Object.keys(answered).length===3){
+    setTimeout(()=>{
+      const msg = score===3 ? 'CAMPEÃO! 🏆 3/3 — você usa a internet muito bem!' : score===2 ? 'MUITO BEM! ✨ 2/3 — quase lá!' : 'BOM COMEÇO! 🌱 '+score+'/3 — continue tentando!';
+      pop(msg);
+      setTimeout(()=>go(9),1400);
+    },500);
+  }
+}
+window.answer=answer;
+let popT=null;
+function pop(t){
+  const p=document.getElementById('scorePop');
+  p.style.display='block'; p.innerHTML='⭐ '+t;
+  clearTimeout(popT); popT=setTimeout(()=>p.style.display='none',2600);
+}
+
+/* editor de imagens das telas 3 e 6 (tecla E ou ?edit=1) */
+(function(){
+  const KEY='evoDigital_imgPos_v1';
+  const DEF={
+    bgImg0:{x:0,y:0,s:100,o:65},
+    bgImg1:{x:0,y:0,s:100,o:100},
+    bgImg2b:{x:0,y:0,s:100,o:35},
+    bgImg3:{x:120,y:0,s:100,o:55,f:55},
+    bgImg4:{x:0,y:0,s:100,o:100},
+    bgImg6:{x:50,y:0,s:100,o:60,f:55},
+    bgImg7:{x:0,y:0,s:100,o:45},
+    bgImg9a:{x:0,y:0,s:100,o:70},
+    bgImg9b:{x:0,y:0,s:100,o:28}
+  };
+  const MAP={
+    bgImg0:{x:'ed0x',y:'ed0y',s:'ed0s',o:'ed0o'},
+    bgImg1:{x:'ed1x',y:'ed1y',s:'ed1s',o:'ed1o'},
+    bgImg2b:{x:'ed2bx',y:'ed2by',s:'ed2bs',o:'ed2bo'},
+    bgImg3:{x:'ed3x',y:'ed3y',s:'ed3s',o:'ed3o',f:'ed3f'},
+    bgImg4:{x:'ed4x',y:'ed4y',s:'ed4s',o:'ed4o'},
+    bgImg6:{x:'ed6x',y:'ed6y',s:'ed6s',o:'ed6o',f:'ed6f'},
+    bgImg7:{x:'ed7x',y:'ed7y',s:'ed7s',o:'ed7o'},
+    bgImg9a:{x:'ed9ax',y:'ed9ay',s:'ed9as',o:'ed9ao'},
+    bgImg9b:{x:'ed9bx',y:'ed9by',s:'ed9bs',o:'ed9bo'}
+  };
+  function apply(id,c){
+    const img=document.getElementById(id); if(!img||!c) return;
+    img.style.setProperty('--ex',(c.x||0)+'px');
+    img.style.setProperty('--ey',(c.y||0)+'px');
+    img.style.setProperty('--es',(c.s==null?100:c.s)/100);
+    if(c.f!=null) img.style.setProperty('--fx',c.f+'%');
+    if(c.o!=null) img.style.opacity=c.o/100;
+  }
+  function applyAll(o){ for(const id in o) apply(id,o[id]); }
+  function readUI(){
+    const o={};
+    for(const id in MAP){ const m=MAP[id]; o[id]={};
+      for(const k in m){ const el=document.getElementById(m[k]);
+        o[id][k]=el?+el.value:(DEF[id]?DEF[id][k]:0); }
+    }
+    return o;
+  }
+  function paintVals(){
+    for(const id in MAP){ const m=MAP[id];
+      for(const k in m){ const inp=document.getElementById(m[k]), lab=document.getElementById(m[k]+'v');
+        if(lab&&inp) lab.textContent=inp.value+((k==='x'||k==='y')?'':'%'); }
+    }
+  }
+  function writeUI(o){
+    for(const id in MAP){ const m=MAP[id]; if(!o[id]) continue;
+      for(const k in m){ const el=document.getElementById(m[k]);
+        if(el&&o[id][k]!=null) el.value=o[id][k]; }
+    }
+    paintVals();
+  }
+  try{
+    const raw=localStorage.getItem(KEY);
+    if(raw){ const o=JSON.parse(raw); writeUI(o); applyAll(o); }
+    else { writeUI(DEF); }
+  }catch(e){ try{ writeUI(DEF); }catch(_){} }
+  document.querySelectorAll('#imgEditor input[type=range]').forEach(inp=>{
+    inp.addEventListener('input',()=>{ paintVals(); applyAll(readUI()); });
+  });
+  const saveB=document.getElementById('edSave');
+  if(saveB) saveB.onclick=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(readUI())); saveB.textContent='✅ Salvo!'; }catch(e){ saveB.textContent='⚠️ Erro'; } setTimeout(()=>saveB.textContent='💾 Salvar',1500); };
+  const resB=document.getElementById('edReset');
+  if(resB) resB.onclick=()=>{ writeUI(DEF); applyAll(DEF); try{ localStorage.removeItem(KEY); }catch(e){} };
+  const copyB=document.getElementById('edCopy');
+  if(copyB) copyB.onclick=async()=>{ const t=JSON.stringify(readUI()); try{ await navigator.clipboard.writeText(t); copyB.textContent='✅ Copiado!'; }catch(e){ prompt('Copie os valores:',t); return; } setTimeout(()=>copyB.textContent='📋 Copiar',1500); };
+  const closeB=document.getElementById('edClose');
+  if(closeB) closeB.onclick=()=>{ document.getElementById('imgEditor').hidden=true; };
+  try{ if(new URLSearchParams(location.search).get('edit')==='1'){ document.getElementById('imgEditor').hidden=false; } }catch(e){}
+})();
+
+/* share */
+const _shareBtn=document.getElementById('shareBtn');
+if(_shareBtn){
+  _shareBtn.onclick=async()=>{
+    const url='https://perchance.org/'+(window.generatorName||'');
+    const txt='A EVOLUÇÃO DIGITAL ⚡ — apresentação interativa para crianças: '+url;
+    try{ await navigator.clipboard.writeText(txt); pop('link copiado! 📋'); }
+    catch(e){ prompt('Copia o link:',txt); }
+  };
+}
+
+/* stars canvas */
+(function(){
+  const c=document.getElementById('stars'),x=c.getContext('2d');let W,H,P=[];
+  function rs(){W=c.width=innerWidth;H=c.height=innerHeight}
+  rs();addEventListener('resize',rs);
+  for(let i=0;i<90;i++)P.push({x:Math.random(),y:Math.random(),s:Math.random()*2+.4,v:Math.random()*.0006+.0002});
+  (function loop(){
+    x.clearRect(0,0,W,H);
+    P.forEach(p=>{
+      p.y-=p.v; if(p.y<0)p.y=1;
+      x.fillStyle=p.s>1.4?'#00f0ff':'rgba(255,255,255,.7)';
+      x.globalAlpha=.5; x.fillRect(p.x*W,p.y*H,p.s,p.s);
+    });
+    x.globalAlpha=1; requestAnimationFrame(loop);
+  })();
+})();
+</script>
